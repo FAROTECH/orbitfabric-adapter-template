@@ -58,6 +58,51 @@ def test_release_bundle_builder_produces_core_conformant_exact_identity(tmp_path
     assert descriptor_sha in sums
 
 
+def test_release_only_builder_omits_project_lock_and_sums_publisher_assets(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "dummy-adapter.whl"
+    wheel.write_bytes(b"publisher-release-wheel")
+    output = tmp_path / "release"
+
+    subprocess.run(
+        [
+            sys.executable,
+            "tools/build_release_bundle.py",
+            "--wheel",
+            str(wheel),
+            "--authority",
+            "release.example",
+            "--publisher",
+            "orbitfabric",
+            "--name",
+            "dummy-adapter",
+            "--release-only",
+            "--output-dir",
+            str(output),
+        ],
+        check=True,
+    )
+
+    descriptor_path = output / "adapter-release.json"
+    sums_path = output / "SHA256SUMS"
+
+    descriptor = load_release_descriptor(descriptor_path)
+    wheel_sha = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    descriptor_sha = hashlib.sha256(descriptor_path.read_bytes()).hexdigest()
+
+    assert descriptor["source_coordinate"] == {
+        "authority": "release.example",
+        "publisher": "orbitfabric",
+        "name": "dummy-adapter",
+    }
+    assert not (output / "adapter-project-lock.json").exists()
+    assert sums_path.read_text(encoding="utf-8").splitlines() == [
+        f"{wheel_sha}  {wheel.name}",
+        f"{descriptor_sha}  {descriptor_path.name}",
+    ]
+
+
 def test_release_bundle_builder_rejects_missing_artifact(tmp_path: Path) -> None:
     completed = subprocess.run(
         [
