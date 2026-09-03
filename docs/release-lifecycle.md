@@ -1,12 +1,27 @@
 # Release Lifecycle
 
-This repository separates release construction from publication.
+This repository separates release construction, project selection and publication.
 
-The adapter repository is responsible for constructing exact release identity. A publication provider only transports those already identified bytes.
+The adapter publisher owns the exact release definition and installable artifact bytes. A consuming project owns its exact Project Lock. A publication provider transports already identified release bytes.
 
-## What you build
+## Three distinct objects
 
-For a Python adapter, the release path demonstrated by this Template is:
+```text
+Adapter Release Descriptor
+    publisher-owned immutable release definition
+
+Adapter Project Lock
+    consumer-project exact selected resolution
+
+Publication backend
+    storage, discovery and transport
+```
+
+Do not treat these as one generic release bundle.
+
+## What you build for lifecycle proof
+
+For a Python adapter, the complete Template proof path is:
 
 ```text
 clean checkout
@@ -15,7 +30,7 @@ clean checkout
     -> compute Integration Package Manifest SHA-256
     -> build Adapter Release Descriptor
     -> compute Release Descriptor SHA-256
-    -> build Adapter Project Lock
+    -> derive Adapter Project Lock
     -> Core conformance
     -> Adapter Manager install from lock
     -> MATCH
@@ -28,7 +43,7 @@ The Template provides:
 tools/build_release_bundle.py
 ```
 
-It generates:
+Its default mode generates the complete developer/lifecycle proof material:
 
 ```text
 adapter-release.json
@@ -36,7 +51,38 @@ adapter-project-lock.json
 SHA256SUMS
 ```
 
-These files use Core-owned candidate contracts. The tool is a developer convenience, not a replacement specification.
+This mode is useful when testing exact selection and Adapter Manager lifecycle behavior.
+
+## What you build for publisher release material
+
+A published adapter release should not include a canonical project lock because the lock belongs to a consuming project.
+
+Use:
+
+```bash
+python tools/build_release_bundle.py \
+  --wheel dist/orbitfabric_dummy_adapter-0.1.0.dev0-py3-none-any.whl \
+  --authority <release-source-authority> \
+  --publisher <publisher> \
+  --name <adapter-name> \
+  --release-only
+```
+
+This mode generates:
+
+```text
+adapter-release.json
+SHA256SUMS
+```
+
+The release-only `SHA256SUMS` contains only publisher-side release assets produced or selected by the command:
+
+```text
+adapter wheel
+adapter-release.json
+```
+
+The Integration Package Manifest is already integrity-bound by digest from inside the Release Descriptor and is packaged inside the wheel. It is not listed as a separate publication asset unless a concrete release policy deliberately publishes it separately.
 
 ## Build the wheel
 
@@ -50,7 +96,7 @@ The wheel must contain exactly one namespaced `integration_package.json` that be
 
 ## Build exact release identity
 
-For the Dummy Adapter:
+For the Dummy Adapter developer proof:
 
 ```bash
 python tools/build_release_bundle.py \
@@ -60,7 +106,9 @@ python tools/build_release_bundle.py \
   --name dummy-adapter
 ```
 
-For a real adapter, replace all three identity fields deliberately.
+For a real adapter, replace all identity fields deliberately.
+
+Do not infer logical publisher identity or Source Coordinate authority merely from repository hosting or package-manager account names.
 
 The tool reads `project.version` from `pyproject.toml` unless `--release-version` is supplied explicitly.
 
@@ -72,15 +120,9 @@ python-wheel-managed-env
 
 This is a backend-specific Template convention. It is not a universal adapter contract.
 
-## Validate before publishing
+## Derive and validate Project Lock
 
-With the exact OrbitFabric Core baseline installed, validate the generated files through Core-owned readers and conformance surfaces.
-
-The CI release proof does exactly this before installation.
-
-## Satisfy the Project Lock
-
-The generated Project Lock contains exact identity:
+The Project Lock contains exact project-selected identity:
 
 ```text
 Source Coordinate
@@ -90,6 +132,10 @@ artifact id
 artifact SHA-256
 installation backend id
 ```
+
+The default tool mode derives a lock immediately so the Template can prove the complete lifecycle.
+
+A real consuming project may instead derive or retain its own lock after selecting a published release. That project-specific lock is not part of the publisher's immutable release membership.
 
 The Template CI proves:
 
@@ -102,16 +148,33 @@ initial state MISSING
 
 A nominal version match is not sufficient when byte identity differs.
 
+## Validate before publishing
+
+With the exact OrbitFabric Core baseline installed, validate the Release Descriptor and any project lock through Core-owned readers and conformance surfaces.
+
+Also run target-native compatibility controls appropriate to the concrete downstream. Core conformance and downstream acceptance answer different questions.
+
 ## Publication is separate
 
 The Template does not require GitHub Releases, PyPI or a future OrbitFabric registry.
 
-A provider-specific publication step may later resolve and transport the same exact release into the Core source-neutral `ResolvedAdapterRelease` seam.
+A provider-specific publication step may later resolve and transport the exact publisher release material into the Core source-neutral `ResolvedAdapterRelease` seam.
 
-Do not put provider URLs into Project Lock identity only because one provider happens to be used for publication.
+Provider URLs are transport metadata. Do not insert them into Project Lock identity merely because one provider is used for publication.
+
+If a backend supports immutable releases, attestations or signatures, retain those as release/trust evidence without redefining the generic OrbitFabric Release Descriptor.
 
 ## Evidence
 
-The `release-proof` CI job retains an evidence artifact containing the exact Release Descriptor, Project Lock, SHA-256 summary and Adapter Manager reports used by the control.
+The `release-proof` CI job intentionally uses the full default mode and retains:
 
-The evidence demonstrates the release that was tested. It does not create a new OrbitFabric contract.
+```text
+Adapter Release Descriptor
+Project Lock used by the proof
+SHA-256 summary
+Adapter Manager reports
+```
+
+That evidence proves exact selection and lifecycle behavior.
+
+It does not imply that the proof's Project Lock should be published as a canonical release artifact.
